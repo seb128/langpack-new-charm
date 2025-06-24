@@ -13,7 +13,7 @@ from charms.operator_libs_linux.v0.apt import PackageError, PackageNotFoundError
 
 from launchpadlib.launchpad import Launchpad
 from pathlib import Path
-from subprocess import check_call, check_output, CalledProcessError
+from subprocess import run, CalledProcessError, STDOUT, PIPE, check_call
 
 logger = logging.getLogger(__name__)
 
@@ -32,18 +32,22 @@ class Langpacks:
     def setup_crontab(self):
         """Configure the crontab for the service"""
         try:
-            check_call(
+            run(
                 [
                     "su",
                     "-c",
                     f"crontab src/crontab",
                     "ubuntu",
-                ]
+                ],
+                  check=True,
+                  stdout=PIPE,
+                  stderr=STDOUT,
+                  text=True,
             )
             return
         except CalledProcessError as e:
             logger.debug(
-                "Installation of the crontab failed with return code %d", e.returncode
+                f"Installation of the crontab failed: {e.stdout}"
             )
             return
 
@@ -69,7 +73,7 @@ class Langpacks:
 
         # Clone the langpack-o-matic repo
         try:
-            check_call(
+            run(
                 [
                     "sudo",
                     "-u",
@@ -80,11 +84,15 @@ class Langpacks:
                     "master",
                     "https://git.launchpad.net/langpack-o-matic",
                     REPO_LOCATION,
-                ]
+                ],
+                  check=True,
+                  stdout=PIPE,
+                  stderr=STDOUT,
+                  text=True,
             )
         except CalledProcessError as e:
             logger.debug(
-                "Git clone of the code failed with return code %d", e.returncode
+                f"Git clone of the code failed: {e.stdout}"
             )
             return
 
@@ -93,7 +101,7 @@ class Langpacks:
 
         # Pull Vcs updates
         try:
-            check_call(
+            run(
                 [
                     "sudo",
                     "-u",
@@ -102,17 +110,21 @@ class Langpacks:
                     "-C",
                     REPO_LOCATION,
                     "pull",
-                ]
+                ],
+                  check=True,
+                  stdout=PIPE,
+                  stderr=STDOUT,
+                  text=True,
             )
         except CalledProcessError as e:
             logger.debug(
-                "Git pull of the code failed with return code %d", e.returncode
+               f"Git pull of the langpack-o-matic repository failed: {e.stdout}"
             )
             return
 
         # Call make target
         try:
-            check_call(
+            run(
                 [
                     "sudo",
                     "-u",
@@ -120,11 +132,15 @@ class Langpacks:
                     "make",
                     "-C",
                     REPO_LOCATION / "bin",
-                ]
+                ],
+                  check=True,
+                  stdout=PIPE,
+                  stderr=STDOUT,
+                  text=True,
             )
         except CalledProcessError as e:
             logger.debug(
-                "Build of msgequal failed with return code %d", e.returncode
+                f"Build of msgequal failed: {e.stdout}"
             )
             return
 
@@ -155,18 +171,22 @@ class Langpacks:
           if not os.path.exists(BUILDDIR):
             # Create target directory
             try:
-              check_call(
+              run(
                   [
                       "sudo",
                       "-u",
                       "ubuntu",
                       "mkdir",
                       HOME / release,
-                  ]
+                  ],
+                  check=True,
+                  stdout=PIPE,
+                  stderr=STDOUT,
+                  text=True,
                 )
             except CalledProcessError as e:
                 logger.debug(
-                    "Creating directory failed with return code %d", e.returncode
+                    f"Creating directory failed: {e.stdout}"
                 )
                 return
           else:
@@ -181,7 +201,7 @@ class Langpacks:
 
           # Download the current translations tarball from launchpad
           try:
-              check_call(
+              run(
                   [
                       "sudo",
                       "-u",
@@ -192,17 +212,21 @@ class Langpacks:
                       "-O",
                       REPO_LOCATION / f"ubuntu-{release}-translations.tar.gz",
                       f"https://translations.launchpad.net/ubuntu/{release}/+latest-full-language-pack",
-                  ]
+                  ],
+                  check=True,
+                  stdout=PIPE,
+                  stderr=STDOUT,
+                  text=True,
               )
           except CalledProcessError as e:
               logger.debug(
-                  "Download of the tarball failed with return code %d", e.returncode
+                  f"Downloading the tarball failed: {e.stdout}"
               )
               return
 
           # Call the import script that prepares the packages
           try:
-              check_call(
+              run(
                   [
                       "sudo",
                       "-u",
@@ -213,11 +237,15 @@ class Langpacks:
                       REPO_LOCATION / f"ubuntu-{release}-translations.tar.gz",
                       release,
                       HOME / release,
-                  ]
+                  ],
+                  check=True,
+                  stdout=PIPE,
+                  stderr=STDOUT,
+                  text=True,
               )
           except CalledProcessError as e:
               logger.debug(
-                  "Building the langpacks source failed with return code %d", e.returncode
+                  f"Building the langpacks source failed: {e.stdout}"
               )
               return
         else:
@@ -227,7 +255,7 @@ class Langpacks:
     def upload_langpacks(self):
           """Upload the packages"""
           try:
-              check_call(
+              run(
                   [
                       "sudo",
                       "-u",
@@ -235,27 +263,57 @@ class Langpacks:
                       REPO_LOCATION / "packages",
                       "upload",
                   ],
-                  cwd=REPO_LOCATION
+                  cwd=REPO_LOCATION,
+                  check=True,
+                  stdout=PIPE,
+                  stderr=STDOUT,
+                  text=True,
               )
           except CalledProcessError as e:
               logger.debug(
-                  "Building the langpacks source failed with return code %d", e.returncode
+                  f"Uploading the langpacks failed: {e.stdout}"
               )
               return
 
     def disable_crontab(self):
         try:
-            check_call(
+            run(
                 [
                     "su",
                     "-c",
                     "crontab -r",
                     "ubuntu",
-                ]
+                ],
+                  check=True,
+                  stdout=PIPE,
+                  stderr=STDOUT,
+                  text=True,
             )
             return
         except CalledProcessError as e:
             logger.debug(
-                "Disabling of crontab failed with return code %d", e.returncode
+                f"Disabling of crontab failed: {e.stdout}"
             )
             return
+
+    def import_gpg_key(self, key):
+          try:
+              run(
+                  [
+                      "sudo",
+                      "-u",
+                      "ubuntu",
+                      "gpg",
+                      "--import",
+                  ],
+                  check=True,
+                  input=key,
+                  stdout=PIPE,
+                  stderr=STDOUT,
+                  text=True,
+              )
+          except CalledProcessError as e:
+              logger.debug(
+                  f"Importing key failed: {e.stdout}"
+              )
+              return

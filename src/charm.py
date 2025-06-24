@@ -7,9 +7,11 @@
 import logging
 
 import ops
+from ops.model import Secret
 from charms.operator_libs_linux.v0.apt import PackageError, PackageNotFoundError
 
 from langpacks import Langpacks
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +32,15 @@ class LangpackVmCharm(ops.CharmBase):
 
     def _on_start(self, event: ops.StartEvent):
         """Handle start event."""
-        self.unit.status = ops.MaintenanceStatus("Setting up crontab")
-        self._langpacks.setup_crontab()
+
+        self.unit.status = ops.MaintenanceStatus("Updating langpack-o-matic checkout")
+        self._langpacks.update_checkout()
+
         self.unit.status = ops.ActiveStatus()
 
     def _on_install(self, event: ops.InstallEvent):
         """Handle install event."""
+
         self.unit.status = ops.MaintenanceStatus("Installing langpack dependencies")
         try:
             self._langpacks.install()
@@ -44,36 +49,39 @@ class LangpackVmCharm(ops.CharmBase):
                 "Failed to install packages. Check `juju debug-log` for details."
             )
             return
-        self.unit.status = ops.ActiveStatus("Ready")    
+
+        self.unit.status = ops.MaintenanceStatus("Importing signing key")
+        gpgkey: Secret = self.model.get_secret(id="d1dbkikiplfs4206jfqg")
+        self._langpacks.import_gpg_key(gpgkey.get_content().get('key'))
+
+        self.unit.status = ops.MaintenanceStatus("Setting up crontab")
+        self._langpacks.setup_crontab()
+
+        self.unit.status = ops.ActiveStatus()
 
     def _on_config_changed(self, event: ops.ConfigChangedEvent):
         """Update configuration and fetch code updates"""
 
-        self.unit.status = ops.MaintenanceStatus("Updating langpack-o-matic checkout")
 
-        try:
-            self._langpacks.update_checkout()
-        except CalledProcessError:
-            self.unit.status = ops.BlockedStatus(
-                "Invalid configuration. Check `juju debug-log` for details."
-            )
-            return
+        self.unit.status = ops.ActiveStatus()
 
     def _on_build_langpacks(self, event: ops.ActionEvent):
         """Build new langpacks"""
 
         self.unit.status = ops.MaintenanceStatus("Building new langpacks")
+
         release = event.params['release']
         base = event.params['base']
 
         self._langpacks.build_langpacks(base, release)
+        self.unit.status = ops.ActiveStatus()
 
     def _on_upload_langpacks(self, event: ops.ActionEvent):
         """Upload pending langpacks"""
 
         self.unit.status = ops.MaintenanceStatus("Uploading the langpacks")
-
         self._langpacks.upload_langpacks()
+        self.unit.status = ops.ActiveStatus()
 
     def _on_stop(self, event: ops.StopEvent):
         """Handle stop event."""
