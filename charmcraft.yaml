@@ -1,25 +1,27 @@
-name: langpack-vm
+name: ubuntu-langpacks
 type: charm
-title: Language packs charm
+title: Ubuntu Language packs builder charm
 summary: Language pack builder for Ubuntu.
 description: |
-  Build regular updates of the Ubuntu language packs.
+  **Ubuntu Langpack Operator** is a [charm](https://juju.is/charms-architecture)
+  for building language packs for Ubuntu.
 
 
 links:
   website:
-    - https://launchpad.net/langpack-o-matic
+    - https://charmhub.io/ubuntu-langpacks
   issues:
-    - https://bugs.launchpad.net/langpack-o-matic
+    - https://github.com/canonical/ubuntu-langpacks-operator/issues
   source:
-    - https://git.launchpad.net/langpack-o-matic/
+    - https://github.com/canonical/ubuntu-langpacks-operator
+
 
 base: ubuntu@24.04
 platforms:
   amd64:
 
 parts:
-  langpack-charm:
+  langpacks-charm:
     source: .
     plugin: uv
     build-packages: [git]
@@ -31,6 +33,12 @@ parts:
 charm-libs:
   - lib: operator_libs_linux.apt
     version: "0"
+
+config:
+  options:
+    gpg-secret-id:
+        type: secret
+        description: the id of the gpg signing key secret
 
 actions:
   build-langpacks:

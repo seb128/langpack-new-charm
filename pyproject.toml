@@ -5,6 +5,14 @@ requires-python = ">=3.8"
 
 dependencies = ["launchpadlib", "ops"]
 
+[project.optional-dependencies]
+dev = [
+    "ops[testing]",
+    "coverage[toml]",
+    "pytest",
+    "ruff",
+]
+
 # Testing tools configuration
 [tool.coverage.run]
 branch = true

@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-# Copyright 2025 Ubuntu
+# Copyright 2025 Canonical
 # See LICENSE file for licensing details.
 
-"""Charm the application."""
+"""Charmed Operator for Ubuntu langpacks."""
 
 import logging
+from subprocess import CalledProcessError
 
 import ops
-from ops.model import Secret
 from charms.operator_libs_linux.v0.apt import PackageError, PackageNotFoundError
+from ops.model import Secret
 
 from langpacks import Langpacks
-import base64
 
 logger = logging.getLogger(__name__)
 
 
-class LangpackVmCharm(ops.CharmBase):
-    """Charm the application."""
+class UbuntuLangpacksCharm(ops.CharmBase):
+    """Charmed Operator for Ubuntu langpacks."""
 
     def __init__(self, framework: ops.Framework):
         super().__init__(framework)
@@ -32,15 +32,20 @@ class LangpackVmCharm(ops.CharmBase):
 
     def _on_start(self, event: ops.StartEvent):
         """Handle start event."""
-
         self.unit.status = ops.MaintenanceStatus("Updating langpack-o-matic checkout")
-        self._langpacks.update_checkout()
+
+        try:
+            self._langpacks.update_checkout()
+        except CalledProcessError:
+            self.unit.status = ops.BlockedStatus(
+                "Failed to start services. Check `juju debug-log` for details."
+            )
+            return
 
         self.unit.status = ops.ActiveStatus()
 
     def _on_install(self, event: ops.InstallEvent):
         """Handle install event."""
-
         self.unit.status = ops.MaintenanceStatus("Installing langpack dependencies")
         try:
             self._langpacks.install()
@@ -50,43 +55,80 @@ class LangpackVmCharm(ops.CharmBase):
             )
             return
 
-        self.unit.status = ops.MaintenanceStatus("Importing signing key")
-        gpgkey: Secret = self.model.get_secret(id="d1dbkikiplfs4206jfqg")
-        self._langpacks.import_gpg_key(gpgkey.get_content().get('key'))
-
         self.unit.status = ops.MaintenanceStatus("Setting up crontab")
         self._langpacks.setup_crontab()
 
         self.unit.status = ops.ActiveStatus()
 
     def _on_config_changed(self, event: ops.ConfigChangedEvent):
-        """Update configuration and fetch code updates"""
+        """Update configuration and fetch code updates."""
+        self.unit.status = ops.MaintenanceStatus("Importing signing key")
 
+        try:
+            secret_id = self.config["gpg-secret-id"]
+        except KeyError:
+            logger.warning("No 'gpg-secret-id' config, can't set up signing key")
+            return
+
+        try:
+            gpgkey: Secret = self.model.get_secret(id=secret_id)
+            keycontent = gpgkey.get_content().get("key")
+        except ops.SecretNotFoundError:
+            logger.warning("Signing key secret not found")
+            self.unit.status = ops.BlockedStatus(
+                "Secret not available. Check that access was granted"
+            )
+            return
+
+        try:
+            self._langpacks.import_gpg_key(keycontent)
+        except CalledProcessError:
+            self.unit.status = ops.BlockedStatus(
+                "Failed import the signing key. Check `juju debug-log` for details."
+            )
+            return
 
         self.unit.status = ops.ActiveStatus()
 
     def _on_build_langpacks(self, event: ops.ActionEvent):
-        """Build new langpacks"""
-
+        """Build new langpacks."""
         self.unit.status = ops.MaintenanceStatus("Building new langpacks")
 
-        release = event.params['release']
-        base = event.params['base']
+        release = event.params["release"]
+        base = event.params["base"]
 
-        self._langpacks.build_langpacks(base, release)
+        try:
+            self._langpacks.build_langpacks(base, release)
+        except CalledProcessError:
+            self.unit.status = ops.BlockedStatus(
+                "Failed to build langpacks. Check `juju debug-log` for details."
+            )
+            return
         self.unit.status = ops.ActiveStatus()
 
     def _on_upload_langpacks(self, event: ops.ActionEvent):
-        """Upload pending langpacks"""
-
+        """Upload pending langpacks."""
         self.unit.status = ops.MaintenanceStatus("Uploading the langpacks")
-        self._langpacks.upload_langpacks()
+        try:
+            self._langpacks.upload_langpacks()
+        except CalledProcessError:
+            self.unit.status = ops.BlockedStatus(
+                "Failed to upload langpacks. Check `juju debug-log` for details."
+            )
+            return
+
         self.unit.status = ops.ActiveStatus()
 
     def _on_stop(self, event: ops.StopEvent):
         """Handle stop event."""
         self.unit.status = ops.MaintenanceStatus("Removing the crontab")
-        self._langpacks.disable_crontab()
+
+        try:
+            self._langpacks.disable_crontab()
+        except CalledProcessError as e:
+            logger.exception("Failed to disable the crontab: %s", e)
+            return
+
 
 if __name__ == "__main__":  # pragma: nocover
-    ops.main(LangpackVmCharm)
+    ops.main(UbuntuLangpacksCharm)

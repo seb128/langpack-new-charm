@@ -1,26 +1,64 @@
-<!--
-Avoid using this README file for information that is maintained or published elsewhere, e.g.:
+# Ubuntu Langpacks Operator
 
-* metadata.yaml > published on Charmhub
-* documentation > published on (or linked to from) Charmhub
-* detailed contribution guide > documentation or CONTRIBUTING.md
 
-Use links instead.
--->
+**Ubuntu Langpacks Operator** is a [charm](https://juju.is/charms-architecture) for deploying an Ubuntu language pack builder environment.
 
-# langpack-vm
+This reposistory contains the code for the charm, the application is coming from that [repository](https://git.launchpad.net/langpack-o-matic).
 
-Charmhub package name: operator-template
-More information: https://charmhub.io/langpack-vm
+## Basic usage
 
-Describe your charm in one or two sentences.
+Assuming you have access to a bootstrapped [Juju](https://juju.is) controller, you can deploy the charm with:
 
-## Other resources
+```bash
+❯ juju deploy ubuntu-langpacks
+```
 
-<!-- If your charm is documented somewhere else other than Charmhub, provide a link separately. -->
+Once the charm is deployed, you can check the status with Juju status:
 
-- [Read more](https://example.com)
+```bash
+❯ juju status
+Model    Controller           Cloud/Region         Version  SLA          Timestamp
+testing  localhost-localhost  localhost/localhost  3.6.7    unsupported  11:06:36+01:00
 
-- [Contributing](CONTRIBUTING.md) <!-- or link to other contribution documentation -->
+App              Version  Status       Scale  Charm            Channel  Rev  Exposed  Message
+ubuntu-langpacks           maintenance      1  ubuntu-langpacks             0  no       Updating manpages
 
-- See the [Juju SDK documentation](https://juju.is/docs/sdk) for more information about developing and improving charms.
+Unit                Workload     Agent  Machine  Public address  Ports     Message
+ubuntu-langpacks/0*  maintenance  idle   1        10.245.163.53   8080/tcp  Updating manpages
+
+Machine  State    Address        Inst id        Base          AZ  Message
+1        started  10.245.163.53  juju-3a79fc-4  ubuntu@24.04      Running
+```
+
+On first start up, the charm will install the application and setup a cronjob to build regular language packs updates for the supported Ubuntu series. 
+
+The charm relies on the launchpad ~langpack-uploader private gpg key to be provided as a secret.
+
+```
+$ juju add-secret langpack-gpg-key key#file=langpack.priv.asc
+$ juju grant-secret langpack-gpg-key ubuntu-langpacks
+```
+
+There is a configuration option: `gpg-secret-id`, which you can set:
+
+```bash
+❯ juju config ubuntu-langpacks gpg-secret-id=secret:SECRET_ID
+```
+
+where SECRET_ID is the ID of the juju secret.
+
+To build the langpacks, you can use the provided Juju [Action](https://documentation.ubuntu.com/juju/3.6/howto/manage-actions/):
+
+```bash
+❯ juju run ubuntu-langpacks/0 build-langpacks base=true|false release="<codename>"
+```
+
+## Contribute to Ubuntu Langpacks Operator
+
+Ubuntu Langpacks Operator is open source and part of the Canonical family. We would love your help.
+
+If you're interested, start with the [contribution guide](CONTRIBUTING.md).
+
+## License and copyright
+
+Ubuntu Langpacks Operator is released under the [GPL-3.0 license](LICENSE).

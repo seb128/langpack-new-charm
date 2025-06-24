@@ -3,16 +3,15 @@
 #
 # Learn more about testing at: https://juju.is/docs/sdk/testing
 
-import unittest
 
 from ops import testing
 
-from charm import LangpackVmCharm
+from charm import UbuntuLangpacksCharm
 
 
 def test_start():
     # Arrange:
-    ctx = testing.Context(LangpackVmCharm)
+    ctx = testing.Context(UbuntuLangpacksCharm)
     # Act:
     state_out = ctx.run(ctx.on.start(), testing.State())
     # Assert:
